@@ -1,0 +1,19 @@
+{
+  "name": "sashay",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --workspaces dev",
+    "prettier": "bunx prettier --write ."
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prettier": "3.6.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
