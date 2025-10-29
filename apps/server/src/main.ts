@@ -30,7 +30,8 @@ const app = new Elysia()
         return status(401);
       }
 
-      sessionId.value = "test";
+      // Get session id from DB
+      sessionId.value = crypto.randomUUID();
       sessionId.httpOnly = true;
       sessionId.secure = process.env.NODE_ENV === "production";
       sessionId.sameSite = "lax";
