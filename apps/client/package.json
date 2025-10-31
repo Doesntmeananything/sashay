@@ -1,27 +1,27 @@
 {
-  "name": "client",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@elysiajs/eden": "^1.4.4",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "@sashay/server": "workspace:*"
-  },
-  "devDependencies": {
-    "@types/node": "^24.6.0",
-    "@types/react": "^19.1.16",
-    "@types/react-dom": "^19.1.9",
-    "@vitejs/plugin-react": "^5.0.4",
-    "babel-plugin-react-compiler": "^1.0.0",
-    "typescript": "^5.9.3",
-    "vite": "^7.1.7"
-  }
+    "name": "client",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "lint": "eslint .",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "@elysiajs/eden": "^1.4.4",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+        "@sashay/server": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/node": "^24.6.0",
+        "@types/react": "^19.1.16",
+        "@types/react-dom": "^19.1.9",
+        "@vitejs/plugin-react": "^5.0.4",
+        "babel-plugin-react-compiler": "^1.0.0",
+        "typescript": "^5.9.3",
+        "vite": "^7.1.7"
+    }
 }
