@@ -1,5 +1,9 @@
 import type { FormEventHandler } from "react";
-import { apiClient } from "./api-client";
+
+import { apiClient } from "../api";
+import { useNavigate } from "../router/use-navigate";
+import { ws } from "../websocket";
+import { ls } from "../local-storage";
 
 const formIds = ["andrey", "sasha"] as const;
 
@@ -7,8 +11,14 @@ type InputId = (typeof formIds)[number];
 
 const getInputId = (id: InputId) => `${id}-password` as const;
 
-export const LoginForm = () => {
-    const onSubmit: FormEventHandler<HTMLFormElement> = (e) => {
+interface Props {
+    isPending: boolean;
+}
+
+export const LoginPage = ({ isPending }: Props) => {
+    const navigate = useNavigate();
+
+    const onSubmit: FormEventHandler<HTMLFormElement> = async (e) => {
         e.preventDefault();
 
         const target = e.target as HTMLFormElement;
@@ -18,7 +28,17 @@ export const LoginForm = () => {
         const input = target.elements.namedItem(inputId) as HTMLInputElement;
         const password = input.value;
 
-        apiClient.login.post({ name: id, password }, { fetch: { credentials: "include" } });
+        const { data, error } = await apiClient.login.post({ name: id, password });
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        ls.saveUserInfo({ id: data.user_id });
+
+        ws.connect();
+        navigate("/chat", { replace: true });
     };
 
     return (
@@ -30,7 +50,9 @@ export const LoginForm = () => {
                     <form key={id} id={id} onSubmit={onSubmit}>
                         <label htmlFor={inputId}>{id === "andrey" ? "Andrey" : "Sasha"}</label>
                         <input id={inputId} type="password" />
-                        <button type="submit">Login</button>
+                        <button type="submit" disabled={isPending}>
+                            Login
+                        </button>
                     </form>
                 );
             })}

@@ -1,13 +1,11 @@
 import { Suspense } from "react";
 
-import { LoginForm } from "./LoginForm";
+import { Router } from "./router/Router";
 
-function App() {
+export const App = () => {
     return (
         <Suspense fallback={<div>Loading...</div>}>
-            <LoginForm />
+            <Router />
         </Suspense>
     );
-}
-
-export default App;
+};

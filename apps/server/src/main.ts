@@ -1,9 +1,34 @@
 import { Elysia, t } from "elysia";
 import cors from "@elysiajs/cors";
 
-import { db } from "./db";
+import { db, type SessionResponse } from "./db";
 
 await db.seed();
+
+const PUBSUB_TOPICS = {
+    CHAT: "chat",
+};
+
+const WebSocketMessageResponseSchema = t.Union([
+    t.Object({
+        type: t.Literal("connected"),
+        user_id: t.String(),
+        username: t.String(),
+        connected_at: t.String(),
+    }),
+    t.Object({
+        type: t.Literal("chat_message"),
+        id: t.String(),
+        user_id: t.String(),
+        created_at: t.String(),
+        content: t.String(),
+    }),
+    t.Object({
+        type: t.Literal("disconnected"),
+        user_id: t.String(),
+        disconnected_at: t.String(),
+    }),
+]);
 
 const app = new Elysia({
     websocket: {
@@ -11,10 +36,11 @@ const app = new Elysia({
     },
 })
     .use(cors())
+    .decorate({ sessions: new Map<string, SessionResponse>(), clients: new Set<WebSocket>() })
     // Auth
     .post(
         "/login",
-        async ({ body, status, cookie: { sessionId } }) => {
+        async ({ body, status, cookie: { sessionId, userId } }) => {
             const { name, password } = body;
 
             const user = db.getUser(name);
@@ -31,9 +57,17 @@ const app = new Elysia({
 
             sessionId.value = sessionIdValue;
             sessionId.httpOnly = true;
-            sessionId.secure = process.env.NODE_ENV === "production";
+            sessionId.secure = Bun.env.NODE_ENV === "production";
             sessionId.sameSite = "lax";
             sessionId.maxAge = 30 * 24 * 60 * 60; // 30 days
+
+            userId.value = user.id;
+            userId.httpOnly = true;
+            userId.secure = Bun.env.NODE_ENV === "production";
+            userId.sameSite = "lax";
+            userId.maxAge = 30 * 24 * 60 * 60; // 30 days
+
+            return { user_id: user.id };
         },
         {
             body: t.Object({
@@ -43,14 +77,79 @@ const app = new Elysia({
         },
     )
     .ws("/ws", {
-        message: (ws, message) => {
-            const data = ws.data.query;
+        cookie: t.Cookie({
+            sessionId: t.String(),
+            userId: t.String(),
+        }),
+        body: t.Object({
+            type: t.String(),
+            id: t.String(),
+            content: t.String(),
+        }),
+        response: WebSocketMessageResponseSchema,
 
-            ws.send(data);
+        open: (ws) => {
+            const sessionId = ws.data.cookie.sessionId.value;
+            const userId = ws.data.cookie.userId.value;
+
+            let session = sessionId ? db.getSession(sessionId) : null;
+
+            if (!session && Bun.env.NODE_ENV === "development") {
+                const testSessionId = db.createSession(userId);
+                session = db.getSession(testSessionId)!;
+            } else if (!session) {
+                ws.close(4001, "Unauthorized");
+                return;
+            }
+
+            ws.data.sessions.set(ws.id, session);
+
+            ws.subscribe(PUBSUB_TOPICS.CHAT);
+            ws.publish(PUBSUB_TOPICS.CHAT, {
+                type: "connected",
+                user_id: session.user_id,
+                username: session.username,
+                connected_at: new Date().toISOString(),
+            });
+
+            console.log(`[WS]: ${session.username} connected`);
+        },
+
+        message: (ws, message) => {
+            const userId = ws.data.cookie.userId.value;
+
+            const sender = ws.data.sessions.get(ws.id);
+            if (!sender) return;
+
+            const { id, content } = message;
+
+            const createdAt = new Date().toISOString();
+            try {
+                db.createChatMessage(id, userId, content, createdAt);
+            } catch (error) {
+                console.error(error);
+            }
+
+            ws.publish(PUBSUB_TOPICS.CHAT, { type: "chat_message", id, user_id: userId, created_at: createdAt, content });
+
+            console.log(`[WS]: Published message to topic "${PUBSUB_TOPICS.CHAT}"`);
+            console.log({ type: "chat_message", user_id: userId, created_at: createdAt, content });
+        },
+
+        close: (ws) => {
+            ws.unsubscribe(PUBSUB_TOPICS.CHAT);
+
+            const session = ws.data.sessions.get(ws.id);
+            if (session) {
+                ws.data.sessions.delete(ws.id);
+                console.log(`[WS]: ${session.username} disconnected`);
+            }
         },
     })
     .listen(3000);
 
+// Type re-exports for client
 export type App = typeof app;
+export { type ChatMessage } from "./db";
 
 console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
