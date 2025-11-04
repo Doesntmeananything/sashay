@@ -1,11 +1,48 @@
-import { Suspense } from "react";
+import { useEffect, useState } from "react";
 
-import { Router } from "./router/Router";
+import { api } from "./api";
+import { ChatPage } from "./chat/ChatPage";
+import { LoginScreen } from "./login/LoginScreen";
+
+type Screen = "loading" | "login" | "chat";
+
+let didInit = false;
 
 export const App = () => {
-    return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <Router />
-        </Suspense>
-    );
+    const [screen, setScreen] = useState<Screen>("loading");
+
+    useEffect(() => {
+        const bootstrap = async () => {
+            const { error } = await api.me.get();
+
+            if (error) {
+                return setScreen("login");
+            }
+
+            setScreen("chat");
+        };
+
+        if (!didInit) {
+            didInit = true;
+            bootstrap();
+        }
+    }, []);
+
+    let content = <ChatPage />;
+
+    if (screen === "loading") {
+        content = <div>Loading...</div>;
+    }
+
+    if (screen === "login") {
+        content = (
+            <LoginScreen
+                onLogin={() => {
+                    setScreen("chat");
+                }}
+            />
+        );
+    }
+
+    return content;
 };

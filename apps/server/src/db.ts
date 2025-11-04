@@ -94,7 +94,11 @@ const createUser = async (username: string, plainPassword: string) => {
     console.log(`✅ Created user: ${username}`);
 };
 
-const getUser = (username: string) => {
+const getUserById = (userId: string) => {
+    return sqlite.query("SELECT * FROM users WHERE id = ?").get(userId) as User | undefined;
+};
+
+const getUserByName = (username: string) => {
     return sqlite.query("SELECT * FROM users WHERE username = ?").get(username) as User | undefined;
 };
 // #endregion
@@ -141,6 +145,7 @@ export const db = {
     createSession,
     getSession,
     getAllSessions,
-    getUser,
+    getUserById,
+    getUserByName,
     createChatMessage,
 };

@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-import { apiClient } from "./api";
+import { api } from "./api";
 import { chatStore } from "./chat/chat-store";
 
-let socket: ReturnType<typeof apiClient.ws.subscribe> | null = null;
+let socket: ReturnType<typeof api.ws.subscribe> | null = null;
 let isConnected = false;
 
 const subscribers = new Set<() => void>();
@@ -14,7 +14,7 @@ function notify() {
 const connect = () => {
     if (socket) return socket;
 
-    socket = apiClient.ws.subscribe();
+    socket = api.ws.subscribe();
 
     socket.on("open", () => {
         console.log("WebSocket connected!");
