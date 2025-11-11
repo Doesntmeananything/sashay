@@ -195,11 +195,10 @@ const app = new Elysia({
                     },
                 }),
     )
-
     .listen(3000);
 
-// Type re-exports for client
+// Type re-exports for the web client
 export type App = typeof app;
-export { type ChatMessage } from "./db";
+export { type ChatMessage, type DefaultUsername } from "./db";
 
 console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);

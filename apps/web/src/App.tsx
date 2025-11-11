@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { ChatPage } from "./chat/ChatPage";
 import { LoginScreen } from "./login/LoginScreen";
+import { DebugMenu } from "./chat/DebugMenu";
 
 type Screen = "loading" | "login" | "chat";
 
@@ -28,7 +29,12 @@ export const App = () => {
         }
     }, []);
 
-    let content = <ChatPage />;
+    let content = (
+        <>
+            <ChatPage />
+            <DebugMenu />
+        </>
+    );
 
     if (screen === "loading") {
         content = <div>Loading...</div>;

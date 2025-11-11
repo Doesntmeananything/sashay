@@ -8,7 +8,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 export default defineConfig([
     globalIgnores(["dist"]),
     {
-        files: ["apps/client/src/**/*.{ts,tsx}"],
+        files: ["apps/web/src/**/*.{ts,tsx}"],
         extends: [
             js.configs.recommended,
             tseslint.configs.recommended,
@@ -21,7 +21,7 @@ export default defineConfig([
         },
     },
     {
-        files: ["apps/server/src/**/*.{ts,tsx}"],
+        files: ["apps/api/src/**/*.{ts,tsx}"],
         extends: [js.configs.recommended, tseslint.configs.recommended],
         languageOptions: {
             ecmaVersion: 2020,

@@ -73,6 +73,8 @@ interface User {
     password_hash: string;
 }
 
+export type DefaultUsername = "Andrey" | "Sasha";
+
 sqlite.run(`
     CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -82,7 +84,7 @@ sqlite.run(`
 `);
 
 // Helper function for development
-const createUser = async (username: string, plainPassword: string) => {
+const createUser = async (username: DefaultUsername, plainPassword: string) => {
     const existing = sqlite.query("SELECT * FROM users WHERE username = ?").get(username);
     if (existing) return;
 

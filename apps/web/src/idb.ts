@@ -1,4 +1,4 @@
-import type { ChatMessage } from "@sashay/server";
+import type { ChatMessage } from "../../api/src/main";
 
 const DB_NAME = "chat_db";
 const STORE_NAME = "messages";

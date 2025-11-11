@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import type { ChatMessage } from "@sashay/server";
+import type { ChatMessage } from "../../../api/src/main";
 
 import { idb } from "../idb";
 import { ws } from "../websocket";

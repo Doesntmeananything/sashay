@@ -1,5 +1,5 @@
 {
-    "name": "@sashay/server",
+    "name": "@sashay/api",
     "version": "0.1.0",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
@@ -7,7 +7,7 @@
     },
     "dependencies": {
         "@elysiajs/cors": "^1.4.0",
-        "elysia": "^1.4.13"
+        "elysia": "^1.4.15"
     },
     "devDependencies": {
         "bun-types": "latest",
