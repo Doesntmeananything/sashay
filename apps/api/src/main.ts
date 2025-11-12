@@ -122,6 +122,13 @@ const app = new Elysia({
                     },
                 )
 
+                .post("/logout", ({ status, cookie: { sessionId, userId } }) => {
+                    sessionId.remove();
+                    userId.remove();
+
+                    return status(200);
+                })
+
                 .get("/bootstrap", () => {})
 
                 .ws("/ws", {

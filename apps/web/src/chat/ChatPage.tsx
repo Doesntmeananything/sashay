@@ -7,11 +7,13 @@ export const ChatPage = () => {
     const isConnected = useOnlineStatus();
 
     return (
-        <div>
+        <main className="flex h-full flex-col gap-4 px-6">
             <div>ChatPage: {isConnected ? "Connected" : "Disconnected"}</div>
 
-            <ChatPanel />
-            <ChatMessageInput />
-        </div>
+            <div className="flex h-full flex-col">
+                <ChatPanel className="h-full overflow-auto" />
+                <ChatMessageInput />
+            </div>
+        </main>
     );
 };

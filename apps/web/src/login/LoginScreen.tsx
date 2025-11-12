@@ -1,7 +1,9 @@
-import { useState, type FormEventHandler } from "react";
-import { useFormStatus } from "react-dom";
+import { useTransition, type FormEventHandler } from "react";
 
 import type { DefaultUsername } from "@sashay/api";
+
+import { Input } from "../ui/Input";
+import { Button } from "../ui/Button";
 
 import { api } from "../api";
 import { ws } from "../websocket";
@@ -9,60 +11,78 @@ import { ls } from "../local-storage";
 
 const formIds: Readonly<[DefaultUsername, DefaultUsername]> = ["Andrey", "Sasha"];
 
-const getInputId = (id: DefaultUsername) => `${id}-password` as const;
+const generateInputId = (id: DefaultUsername) => `${id}-password` as const;
+const generateErrorSpanId = (id: DefaultUsername) => `${id}-error` as const;
 
 interface Props {
     onLogin?: () => void;
 }
 
 export const LoginScreen = ({ onLogin }: Props) => {
-    const [user, setUser] = useState<DefaultUsername>("Sasha");
+    const [isPending, startTransition] = useTransition();
 
     const onSubmit: FormEventHandler<HTMLFormElement> = async (e) => {
         e.preventDefault();
 
-        const target = e.target as HTMLFormElement;
-        const id = target.id as DefaultUsername;
+        startTransition(async () => {
+            const target = e.target as HTMLFormElement;
+            const id = target.id as DefaultUsername;
 
-        const inputId = getInputId(id);
-        const input = target.elements.namedItem(inputId) as HTMLInputElement;
-        const password = input.value;
+            const inputId = generateInputId(id);
+            const input = document.getElementById(inputId) as HTMLInputElement;
+            const password = input.value;
 
-        const { data, error } = await api.login.post({ name: id, password });
+            const errorId = generateErrorSpanId(id);
+            const errorSpan = document.getElementById(errorId) as HTMLSpanElement;
 
-        if (error) {
-            console.error(error);
-            return;
-        }
+            if (!password) {
+                input.setCustomValidity("Password is required");
+                errorSpan.textContent = "Password is required";
+                return;
+            }
 
-        ls.saveUserInfo({ id: data.user_id });
+            const { data, error } = await api.login.post({ name: id, password });
 
-        ws.connect();
+            if (error) {
+                input.setCustomValidity("Wrong password");
+                errorSpan.textContent = "Wrong password";
+                return;
+            }
 
-        onLogin?.();
+            ls.saveUserInfo({ id: data.user_id });
+
+            ws.connect();
+
+            onLogin?.();
+        });
     };
 
     return (
-        <main>
+        <main className="pt-[20%] flex justify-center h-fit gap-4">
             {formIds.map((formId) => (
-                <form key={formId} id={formId} onSubmit={onSubmit}>
-                    <LoginFormSubmit formId={formId} />
+                <form key={formId} id={formId} noValidate onSubmit={onSubmit} className="flex flex-col gap-2">
+                    <label htmlFor={generateInputId(formId)}>{formId}</label>
+
+                    <div className="flex items-start gap-2">
+                        <div className="flex flex-col gap-2">
+                            <Input
+                                id={generateInputId(formId)}
+                                type="password"
+                                disabled={isPending}
+                                className="peer invalid:border-red-600"
+                            />
+                            <span
+                                id={`${generateErrorSpanId(formId)}`}
+                                className="peer-invalid:visible h-5 text-sm invisible text-red-500"
+                            />
+                        </div>
+
+                        <Button type="submit" disabled={isPending}>
+                            Login
+                        </Button>
+                    </div>
                 </form>
             ))}
         </main>
-    );
-};
-
-const LoginFormSubmit = ({ formId }: { formId: DefaultUsername }) => {
-    const { pending } = useFormStatus();
-
-    return (
-        <>
-            <label htmlFor={getInputId(formId)}>{formId}</label>
-            <input id={getInputId(formId)} type="password" />
-            <button type="submit" disabled={pending}>
-                Login
-            </button>
-        </>
     );
 };

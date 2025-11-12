@@ -1,8 +1,10 @@
+import { Input } from "../ui/Input";
+
 import { chatStore } from "./chat-store";
 
 export const ChatMessageInput = () => {
     return (
-        <input
+        <Input
             type="text"
             onKeyDown={async (e) => {
                 if (e.key === "Enter") {

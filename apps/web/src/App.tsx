@@ -32,7 +32,13 @@ export const App = () => {
     let content = (
         <>
             <ChatPage />
-            <DebugMenu />
+            {process.env.NODE_ENV === "development" && (
+                <DebugMenu
+                    onLogout={() => {
+                        setScreen("login");
+                    }}
+                />
+            )}
         </>
     );
 
