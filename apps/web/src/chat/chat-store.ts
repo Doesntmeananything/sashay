@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from "react";
 
-import type { ChatMessage } from "../../../api/src/main";
+import type { ChatMessage } from "@sashay/api";
 
-import { idb } from "../idb";
-import { ws } from "../websocket";
-import { ls } from "../local-storage";
+import * as idb from "../storage/idb";
+import * as ls from "../storage/local-storage";
+import { ws } from "../sync/websocket";
 
 let chatMessages: ChatMessage[] = [];
 

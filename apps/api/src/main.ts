@@ -1,7 +1,7 @@
+import { cors } from "@elysiajs/cors";
 import { Elysia, t } from "elysia";
-import cors from "@elysiajs/cors";
 
-import { db, type SessionResponse } from "./db";
+import * as db from "./db";
 
 await db.seed();
 
@@ -36,7 +36,7 @@ const app = new Elysia({
     },
 })
     .use(cors())
-    .decorate({ sessions: new Map<string, SessionResponse>() })
+    .decorate({ sessions: new Map<string, db.SessionResponse>() })
 
     .post(
         "/login",
@@ -86,11 +86,8 @@ const app = new Elysia({
             }),
             beforeHandle: ({ status, cookie }) => {
                 const sessionId = cookie.sessionId.value;
-
                 const session = db.getSession(sessionId);
-                if (!session) {
-                    return status(401);
-                }
+                if (!session) return status(401);
             },
         },
 
@@ -129,7 +126,13 @@ const app = new Elysia({
                     return status(200);
                 })
 
-                .get("/bootstrap", () => {})
+                .get("/bootstrap", () => {
+                    // When we bootstrap the client, we need to send user and message models
+                    const users = db.getAllUsers();
+                    const chatMessages = db.getAllChatMessages();
+
+                    return { users, chatMessages };
+                })
 
                 .ws("/ws", {
                     cookie: t.Cookie({
@@ -206,6 +209,6 @@ const app = new Elysia({
 
 // Type re-exports for the web client
 export type App = typeof app;
-export { type ChatMessage, type DefaultUsername } from "./db";
+export { type ChatMessage, type DefaultUsername, type User } from "./db";
 
 console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);

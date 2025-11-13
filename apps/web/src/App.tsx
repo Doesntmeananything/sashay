@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 
 import { api } from "./api";
 import { ChatPage } from "./chat/ChatPage";
-import { LoginScreen } from "./login/LoginScreen";
 import { DebugMenu } from "./chat/DebugMenu";
+import { LoginScreen } from "./login/LoginScreen";
+import * as idb from "./storage/idb";
 
 type Screen = "loading" | "login" | "chat";
 
@@ -14,11 +15,12 @@ export const App = () => {
 
     useEffect(() => {
         const bootstrap = async () => {
-            const { error } = await api.me.get();
+            const { error, data } = await api.bootstrap.get();
 
-            if (error) {
-                return setScreen("login");
-            }
+            if (error) return setScreen("login");
+
+            const { users, chatMessages } = data;
+            await Promise.all([idb.saveUsers(users), idb.saveChatMessages(chatMessages)]);
 
             setScreen("chat");
         };
@@ -32,6 +34,7 @@ export const App = () => {
     let content = (
         <>
             <ChatPage />
+
             {process.env.NODE_ENV === "development" && (
                 <DebugMenu
                     onLogout={() => {

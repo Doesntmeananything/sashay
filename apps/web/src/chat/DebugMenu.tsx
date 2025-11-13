@@ -1,9 +1,8 @@
 import { useEffect, useRef, type MouseEventHandler } from "react";
 
-import { Button } from "../ui/Button";
-
 import { api } from "../api";
-import { ws } from "../websocket";
+import { ws } from "../sync/websocket";
+import { Button } from "../ui/Button";
 
 const LOCAL_STORAGE_KEY = "debugDialogPosition";
 

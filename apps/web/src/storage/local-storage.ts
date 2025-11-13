@@ -4,11 +4,11 @@ interface UserInfo {
 
 const STORAGE_KEY = "currentUser";
 
-const saveUserInfo = (user: UserInfo) => {
+export const saveUserInfo = (user: UserInfo) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
 };
 
-const loadUserInfo = (): UserInfo => {
+export const loadUserInfo = (): UserInfo => {
     const raw = localStorage.getItem(STORAGE_KEY);
 
     if (!raw) {
@@ -17,5 +17,3 @@ const loadUserInfo = (): UserInfo => {
 
     return JSON.parse(raw);
 };
-
-export const ls = { saveUserInfo, loadUserInfo };

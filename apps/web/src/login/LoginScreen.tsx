@@ -2,12 +2,11 @@ import { useTransition, type FormEventHandler } from "react";
 
 import type { DefaultUsername } from "@sashay/api";
 
-import { Input } from "../ui/Input";
-import { Button } from "../ui/Button";
-
 import { api } from "../api";
-import { ws } from "../websocket";
-import { ls } from "../local-storage";
+import * as ls from "../storage/local-storage";
+import { ws } from "../sync/websocket";
+import { Button } from "../ui/Button";
+import { Input } from "../ui/Input";
 
 const formIds: Readonly<[DefaultUsername, DefaultUsername]> = ["Andrey", "Sasha"];
 
@@ -58,7 +57,7 @@ export const LoginScreen = ({ onLogin }: Props) => {
     };
 
     return (
-        <main className="pt-[20%] flex justify-center h-fit gap-4">
+        <main className="flex h-fit justify-center gap-4 pt-[20%]">
             {formIds.map((formId) => (
                 <form key={formId} id={formId} noValidate onSubmit={onSubmit} className="flex flex-col gap-2">
                     <label htmlFor={generateInputId(formId)}>{formId}</label>
@@ -73,7 +72,7 @@ export const LoginScreen = ({ onLogin }: Props) => {
                             />
                             <span
                                 id={`${generateErrorSpanId(formId)}`}
-                                className="peer-invalid:visible h-5 text-sm invisible text-red-500"
+                                className="invisible h-5 text-sm text-red-500 peer-invalid:visible"
                             />
                         </div>
 

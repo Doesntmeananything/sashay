@@ -10,7 +10,7 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "@elysiajs/eden": "^1.4.4",
+        "@elysiajs/eden": "^1.4.5",
         "@sashay/api": "workspace:*",
         "@tailwindcss/vite": "^4.1.17",
         "clsx": "^2.1.1",
@@ -20,10 +20,10 @@
         "tailwindcss": "^4.1.17"
     },
     "devDependencies": {
-        "@types/node": "^24.10.0",
-        "@types/react": "^19.2.3",
-        "@types/react-dom": "^19.1.9",
-        "@vitejs/plugin-react": "^5.0.4",
+        "@types/node": "^24.10.1",
+        "@types/react": "^19.2.4",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^5.1.1",
         "babel-plugin-react-compiler": "^1.0.0",
         "typescript": "^5.9.3",
         "vite": "^7.2.2"

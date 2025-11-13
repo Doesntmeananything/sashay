@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-import { api } from "./api";
-import { chatStore } from "./chat/chat-store";
+import { api } from "../api";
+import { chatStore } from "../chat/chat-store";
 
 let socket: ReturnType<typeof api.ws.subscribe> | null = null;
 let isConnected = false;
@@ -24,14 +24,14 @@ const connect = () => {
 
     socket.on("message", async ({ data }) => {
         if (data.type === "chat_message") {
-            console.log("onmessage", data);
+            const created_at_raw = data.created_at as unknown;
 
             await chatStore.receiveMessage({
                 id: data.id,
                 user_id: data.user_id,
                 content: data.content,
                 // Elysia/Eden parse ISO strings into date objects automatically, so we revert it here
-                created_at: (data.created_at as unknown as Date).toISOString(),
+                created_at: created_at_raw instanceof Date ? created_at_raw.toISOString() : data.created_at,
             });
         }
     });

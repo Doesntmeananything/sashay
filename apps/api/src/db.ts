@@ -23,7 +23,7 @@ sqlite.run(`
     );
 `);
 
-const createSession = (userId: string) => {
+export const createSession = (userId: string) => {
     // TODO: add a check to avoid creating multiple sessions for a user on the same device
     const sessionId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
@@ -39,7 +39,7 @@ export interface SessionResponse {
     username: User["username"];
 }
 
-const getSession = (sessionId: string) => {
+export const getSession = (sessionId: string) => {
     const session = sqlite
         .query(
             `SELECT s.id, s.user_id, u.username
@@ -53,7 +53,7 @@ const getSession = (sessionId: string) => {
     return session;
 };
 
-const getAllSessions = () => {
+export const getAllSessions = () => {
     return sqlite
         .query(
             `SELECT s.id, s.user_id, u.username
@@ -67,11 +67,13 @@ const getAllSessions = () => {
 // #endregion
 
 // #region Users
-interface User {
+interface UserWithPasswordHash {
     id: string;
     username: string;
     password_hash: string;
 }
+
+export type User = Omit<UserWithPasswordHash, "password_hash">;
 
 export type DefaultUsername = "Andrey" | "Sasha";
 
@@ -89,20 +91,25 @@ const createUser = async (username: DefaultUsername, plainPassword: string) => {
     if (existing) return;
 
     const id = crypto.randomUUID();
-    const hash = await Bun.password.hash(plainPassword);
+    const password_hash = await Bun.password.hash(plainPassword);
 
-    sqlite.run("INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)", [id, username, hash]);
+    sqlite.run("INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)", [id, username, password_hash]);
 
     console.log(`✅ Created user: ${username}`);
 };
 
-const getUserById = (userId: string) => {
-    return sqlite.query("SELECT * FROM users WHERE id = ?").get(userId) as User | undefined;
+export const getUserById = (userId: string) => {
+    return sqlite.query("SELECT * FROM users WHERE id = ?").get(userId) as UserWithPasswordHash | undefined;
 };
 
-const getUserByName = (username: string) => {
-    return sqlite.query("SELECT * FROM users WHERE username = ?").get(username) as User | undefined;
+export const getUserByName = (username: string) => {
+    return sqlite.query("SELECT * FROM users WHERE username = ?").get(username) as UserWithPasswordHash | undefined;
 };
+
+export const getAllUsers = () => {
+    return sqlite.query("SELECT id, username FROM users ORDER BY username ASC").all() as User[];
+};
+
 // #endregion
 
 // #region Chat messages
@@ -121,7 +128,8 @@ sqlite.run(`
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 `);
-const createChatMessage = (chatMessageId: string, userId: string, content: string, createdAt: string): ChatMessage => {
+
+export const createChatMessage = (chatMessageId: string, userId: string, content: string, createdAt: string): ChatMessage => {
     sqlite.run("INSERT INTO chat_messages (id, user_id, content, created_at) VALUES (?, ?, ?, ?)", [
         chatMessageId,
         userId,
@@ -136,18 +144,19 @@ const createChatMessage = (chatMessageId: string, userId: string, content: strin
         created_at: createdAt,
     };
 };
-// #endregion
 
-const seed = async () => {
-    await Promise.all([createUser("Andrey", "andrey123"), createUser("Sasha", "sasha123")]);
+export const getAllChatMessages = () => {
+    return sqlite
+        .query(
+            `SELECT id, user_id, content, created_at 
+            FROM chat_messages
+            ORDER BY datetime(created_at) ASC`,
+        )
+        .all() as ChatMessage[];
 };
 
-export const db = {
-    seed,
-    createSession,
-    getSession,
-    getAllSessions,
-    getUserById,
-    getUserByName,
-    createChatMessage,
+// #endregion
+
+export const seed = async () => {
+    await Promise.all([createUser("Andrey", "andrey123"), createUser("Sasha", "sasha123")]);
 };

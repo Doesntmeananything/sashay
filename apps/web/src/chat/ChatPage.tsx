@@ -1,4 +1,4 @@
-import { useOnlineStatus } from "../websocket";
+import { useOnlineStatus } from "../sync/websocket";
 
 import { ChatMessageInput } from "./ChatMessageInput";
 import { ChatPanel } from "./ChatPanel";
@@ -8,9 +8,9 @@ export const ChatPage = () => {
 
     return (
         <main className="flex h-full flex-col gap-4 px-6">
-            <div>ChatPage: {isConnected ? "Connected" : "Disconnected"}</div>
+            <div>Chat status: {isConnected ? "Connected" : "Disconnected"}</div>
 
-            <div className="flex h-full flex-col">
+            <div className="flex h-full flex-col pb-6">
                 <ChatPanel className="h-full overflow-auto" />
                 <ChatMessageInput />
             </div>
