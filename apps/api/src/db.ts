@@ -6,22 +6,130 @@ const sqlite = new Database("dev_db/dev.db", { strict: true });
 // https://bun.sh/docs/runtime/sqlite#wal-mode
 sqlite.run("PRAGMA journal_mode = WAL;");
 
+//#region Events
+sqlite.run(`
+CREATE TABLE IF NOT EXISTS event_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    entity_data TEXT,
+    entity_changes TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_log_created_at ON event_log (created_at);
+CREATE INDEX IF NOT EXISTS idx_event_log_entity ON event_log (entity_type, entity_id);
+`);
+
+type Event = UserEvent | ChatMessageEvent;
+
+interface BaseEvent {
+    id: string;
+    entity_type: "user" | "chat_message";
+    entity_id: string;
+    event_type: "create" | "update" | "delete";
+    created_at: string;
+}
+
+interface CreateEvent<T> extends BaseEvent {
+    event_type: "create";
+    entity_data: T;
+    entity_changes?: never;
+}
+
+interface UpdateEvent<T> extends BaseEvent {
+    event_type: "update";
+    entity_changes: {
+        [key in keyof T]: { updated_from: string; updated_to: string };
+    };
+    entity_data?: never;
+}
+
+interface DeleteEvent extends BaseEvent {
+    event_type: "delete";
+    entity_data?: never;
+    entity_changes?: never;
+}
+
+type UserEvent = UpdateEvent<Pick<User, "username">> & { entity_type: "user" };
+
+type ChatMessageEvent = (
+    | CreateEvent<Pick<ChatMessage, "user_id" | "content">>
+    | UpdateEvent<Pick<ChatMessage, "content">>
+    | DeleteEvent
+) & { entity_type: "chat_message" };
+
+export const appendEvent = (event: Event) => {
+    const { entity_type, entity_id, event_type, entity_data, entity_changes } = event;
+
+    const tx = sqlite.transaction(() => {
+        const entity_data_stmt = event_type === "create" ? JSON.stringify(entity_data) : null;
+        const entity_changes_stmt = event_type === "update" ? JSON.stringify(entity_changes) : null;
+
+        sqlite.run(`INSERT INTO event_log (entity_type, entity_id, event_type, entity_data, entity_changes) VALUES (?, ?, ?, ?, ?)`, [
+            entity_type,
+            entity_id,
+            event_type,
+            entity_data_stmt,
+            entity_changes_stmt,
+        ]);
+
+        switch (entity_type) {
+            case "user": {
+                switch (event_type) {
+                    case "update": {
+                        const username = entity_changes.username.updated_to;
+                        sqlite.run(`UPDATE users SET username = ? WHERE id = ?`, [username, entity_id]);
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case "chat_message": {
+                switch (event_type) {
+                    case "create": {
+                        const { content, user_id } = entity_data;
+                        sqlite.run(`INSERT INTO chat_messages (id, user_id, content) VALUES (?, ?, ?)`, [entity_id, user_id, content]);
+                        break;
+                    }
+                    case "update": {
+                        const { content } = entity_changes;
+                        sqlite.run(`UPDATE chat_messages SET content = ? WHERE id = ?`, [content, entity_id]);
+                        break;
+                    }
+                    case "delete": {
+                        sqlite.run(`DELETE FROM chat_messages WHERE id = ?`, [entity_id]);
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    tx();
+
+    return event.id;
+};
+
+//#endregion
+
 //#region Sessions
+sqlite.run(`
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    expires_at TEXT DEFAULT (datetime('now'))
+);`);
+
 interface Session {
     id: string;
     user_id: string;
     created_at: string;
     expires_at: string;
 }
-
-sqlite.run(`
-    CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        user_id TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        expires_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-`);
 
 export const createSession = (userId: string) => {
     // TODO: add a check to avoid creating multiple sessions for a user on the same device
@@ -67,23 +175,37 @@ export const getAllSessions = () => {
 // #endregion
 
 // #region Users
+
+sqlite.run(`
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now')),
+    last_seen_at TEXT
+);
+
+CREATE TRIGGER IF NOT EXISTS users_set_updated_at
+AFTER UPDATE ON users
+FOR EACH ROW
+BEGIN
+    UPDATE users
+    SET updated_at = datetime('now')
+    WHERE id = OLD.id;
+END;
+`);
+
 interface UserWithPasswordHash {
     id: string;
     username: string;
     password_hash: string;
+    updated_at: string;
+    last_seen_at: string;
 }
 
 export type User = Omit<UserWithPasswordHash, "password_hash">;
 
 export type DefaultUsername = "Andrey" | "Sasha";
-
-sqlite.run(`
-    CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL
-    );
-`);
 
 // Helper function for development
 const createUser = async (username: DefaultUsername, plainPassword: string) => {
@@ -113,21 +235,33 @@ export const getAllUsers = () => {
 // #endregion
 
 // #region Chat messages
+
+sqlite.run(`
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    deleted_at TEXT
+);
+
+CREATE TRIGGER IF NOT EXISTS chat_messages_set_updated_at
+AFTER UPDATE ON chat_messages
+FOR EACH ROW
+BEGIN
+    UPDATE chat_messages
+    SET updated_at = datetime('now')
+    WHERE id = OLD.id;
+END;
+`);
+
 export interface ChatMessage {
     id: string;
     user_id: string;
     content: string;
     created_at: string;
 }
-
-sqlite.run(`
-    CREATE TABLE IF NOT EXISTS chat_messages (
-        id TEXT PRIMARY KEY,
-        user_id TEXT,
-        content TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-`);
 
 export const createChatMessage = (chatMessageId: string, userId: string, content: string, createdAt: string): ChatMessage => {
     sqlite.run("INSERT INTO chat_messages (id, user_id, content, created_at) VALUES (?, ?, ?, ?)", [
