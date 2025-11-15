@@ -3,8 +3,7 @@ import { useTransition, type FormEventHandler } from "react";
 import type { DefaultUsername } from "@sashay/api";
 
 import { api } from "../api";
-import * as ls from "../storage/local-storage";
-import { ws } from "../sync/websocket";
+import { setCurrentUser } from "../storage/globals";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 
@@ -48,9 +47,7 @@ export const LoginScreen = ({ onLogin }: Props) => {
                 return;
             }
 
-            ls.saveUserInfo({ id: data.user_id });
-
-            ws.connect();
+            setCurrentUser(data);
 
             onLogin?.();
         });

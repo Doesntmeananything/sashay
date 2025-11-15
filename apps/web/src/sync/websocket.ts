@@ -1,75 +1,84 @@
 import { useSyncExternalStore } from "react";
 
+import type { EventEntity } from "@sashay/api";
+
 import { api } from "../api";
-import { chatStore } from "../chat/chat-store";
 
-let socket: ReturnType<typeof api.ws.subscribe> | null = null;
-let isConnected = false;
+type Listener = (event: EventEntity) => Promise<void>;
+type Subscriber = () => void;
 
-const subscribers = new Set<() => void>();
-function notify() {
-    for (const cb of subscribers) cb();
+export class WebSocketHandler {
+    private ws: ReturnType<typeof api.ws.subscribe> | null = null;
+    private listeners = new Set<Listener>();
+    private externalStoreSubscribers = new Set<Subscriber>();
+    private isConnected = false;
+
+    connect = () => {
+        this.ws = api.ws.subscribe();
+
+        this.ws.on("open", () => {
+            console.log("WebSocket connected!");
+
+            this.isConnected = true;
+            this.notify();
+        });
+
+        this.ws.on("message", ({ data }) => {
+            this.listeners.forEach((l) => l(data));
+        });
+
+        this.ws.on("close", (e) => {
+            this.isConnected = false;
+            this.notify();
+
+            console.log("WebSocket disconnected:", e.code, e.reason);
+
+            if (e.code === 4001) {
+                console.warn("Session expired, redirecting to login...");
+            }
+        });
+
+        this.ws.on("error", (err) => {
+            console.error("WebSocket error:", err);
+        });
+    };
+
+    onMessage = (listener: Listener) => {
+        this.listeners.add(listener);
+
+        return () => this.listeners.delete(listener);
+    };
+
+    send = (event: EventEntity) => {
+        this.ws?.send(event);
+    };
+
+    disconnect = () => {
+        this.ws?.close();
+        this.isConnected = false;
+        this.ws = null;
+    };
+
+    getIsConnected = () => {
+        return this.isConnected;
+    };
+
+    subscribe = (sub: Subscriber) => {
+        this.externalStoreSubscribers.add(sub);
+
+        return () => this.externalStoreSubscribers.delete(sub);
+    };
+
+    private notify = () => {
+        for (const sub of this.externalStoreSubscribers) {
+            sub();
+        }
+    };
 }
 
-const connect = () => {
-    if (socket) return socket;
+export const wsHandler = new WebSocketHandler();
 
-    socket = api.ws.subscribe();
-
-    socket.on("open", () => {
-        console.log("WebSocket connected!");
-        isConnected = true;
-        notify();
-    });
-
-    socket.on("message", async ({ data }) => {
-        if (data.type === "chat_message") {
-            const created_at_raw = data.created_at as unknown;
-
-            await chatStore.receiveMessage({
-                id: data.id,
-                user_id: data.user_id,
-                content: data.content,
-                // Elysia/Eden parse ISO strings into date objects automatically, so we revert it here
-                created_at: created_at_raw instanceof Date ? created_at_raw.toISOString() : data.created_at,
-            });
-        }
-    });
-
-    socket.on("close", (e) => {
-        console.log("WebSocket disconnected:", e.code, e.reason);
-
-        if (e.code === 4001) {
-            console.warn("Session expired, redirecting to login...");
-        }
-
-        isConnected = false;
-        socket = null;
-        notify();
-    });
-
-    socket.on("error", (err) => {
-        console.error("WebSocket error:", err);
-    });
-
-    return socket;
-};
-
-const disconnect = () => {
-    socket?.close();
-};
-
-const subscribe = (callback: () => void) => {
-    subscribers.add(callback);
-    return () => subscribers.delete(callback);
-};
-const getStatusSnapshot = () => isConnected;
 export const useOnlineStatus = () => {
-    const isOnline = useSyncExternalStore(subscribe, getStatusSnapshot);
+    const isOnline = useSyncExternalStore(wsHandler.subscribe, wsHandler.getIsConnected);
     return isOnline;
-};
-
-export const ws = {
-    connect,
-    disconnect,
 };

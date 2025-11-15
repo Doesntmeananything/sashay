@@ -1,4 +1,5 @@
 import Database from "bun:sqlite";
+import { t } from "elysia";
 
 const sqlite = new Database("dev_db/dev.db", { strict: true });
 
@@ -22,45 +23,75 @@ CREATE INDEX IF NOT EXISTS idx_event_log_created_at ON event_log (created_at);
 CREATE INDEX IF NOT EXISTS idx_event_log_entity ON event_log (entity_type, entity_id);
 `);
 
-type Event = UserEvent | ChatMessageEvent;
+const BaseEventSchema = t.Object({
+    id: t.String(),
+    entity_type: t.Union([t.Literal("user"), t.Literal("chat_message")]),
+    entity_id: t.String(),
+    event_type: t.Union([t.Literal("create"), t.Literal("update"), t.Literal("delete")]),
+    created_at: t.String(),
+});
 
-interface BaseEvent {
-    id: string;
-    entity_type: "user" | "chat_message";
-    entity_id: string;
-    event_type: "create" | "update" | "delete";
-    created_at: string;
-}
+const UpdateFieldSchema = t.Object({
+    updated_from: t.String(),
+    updated_to: t.String(),
+});
 
-interface CreateEvent<T> extends BaseEvent {
-    event_type: "create";
-    entity_data: T;
-    entity_changes?: never;
-}
+const UserUpdateEventSchema = t.Intersect([
+    BaseEventSchema,
+    t.Object({
+        entity_type: t.Literal("user"),
+        event_type: t.Literal("update"),
+        entity_changes: t.Object({
+            username: UpdateFieldSchema,
+        }),
+        entity_data: t.Optional(t.Never()),
+    }),
+]);
 
-interface UpdateEvent<T> extends BaseEvent {
-    event_type: "update";
-    entity_changes: {
-        [key in keyof T]: { updated_from: string; updated_to: string };
-    };
-    entity_data?: never;
-}
+const ChatMessageCreateEventSchema = t.Intersect([
+    BaseEventSchema,
+    t.Object({
+        entity_type: t.Literal("chat_message"),
+        event_type: t.Literal("create"),
+        entity_data: t.Object({
+            user_id: t.String(),
+            content: t.String(),
+        }),
+        entity_changes: t.Optional(t.Never()),
+    }),
+]);
 
-interface DeleteEvent extends BaseEvent {
-    event_type: "delete";
-    entity_data?: never;
-    entity_changes?: never;
-}
+const ChatMessageUpdateEventSchema = t.Intersect([
+    BaseEventSchema,
+    t.Object({
+        entity_type: t.Literal("chat_message"),
+        event_type: t.Literal("update"),
+        entity_changes: t.Object({
+            content: UpdateFieldSchema,
+        }),
+        entity_data: t.Optional(t.Never()),
+    }),
+]);
 
-type UserEvent = UpdateEvent<Pick<User, "username">> & { entity_type: "user" };
+const ChatMessageDeleteEventSchema = t.Intersect([
+    BaseEventSchema,
+    t.Object({
+        entity_type: t.Literal("chat_message"),
+        event_type: t.Literal("delete"),
+        entity_data: t.Optional(t.Never()),
+        entity_changes: t.Optional(t.Never()),
+    }),
+]);
 
-type ChatMessageEvent = (
-    | CreateEvent<Pick<ChatMessage, "user_id" | "content">>
-    | UpdateEvent<Pick<ChatMessage, "content">>
-    | DeleteEvent
-) & { entity_type: "chat_message" };
+const UserEventSchema = t.Union([UserUpdateEventSchema]);
+const ChatMessageEventSchema = t.Union([ChatMessageCreateEventSchema, ChatMessageUpdateEventSchema, ChatMessageDeleteEventSchema]);
+export const EventSchema = t.Union([UserEventSchema, ChatMessageEventSchema]);
 
-export const appendEvent = (event: Event) => {
+export type UserEventEntity = typeof UserEventSchema.static;
+export type ChatMessageEventEntity = typeof ChatMessageEventSchema.static;
+export type EventEntity = typeof EventSchema.static;
+
+export const appendEvent = (event: EventEntity): EventEntity => {
     const { entity_type, entity_id, event_type, entity_data, entity_changes } = event;
 
     const tx = sqlite.transaction(() => {
@@ -110,7 +141,14 @@ export const appendEvent = (event: Event) => {
 
     tx();
 
-    return event.id;
+    return event;
+};
+
+export const getLastEventId = () => {
+    const lastEvent = sqlite.query(`SELECT MAX(id) as id FROM event_log`).get() as { id: number };
+    const lastEventId = lastEvent.id ?? 0;
+
+    return lastEventId;
 };
 
 //#endregion
@@ -124,39 +162,37 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires_at TEXT DEFAULT (datetime('now'))
 );`);
 
-interface Session {
+export interface SessionEntity {
     id: string;
     user_id: string;
     created_at: string;
     expires_at: string;
 }
 
-export const createSession = (userId: string) => {
+export const createSession = (userId: string): SessionEntity => {
     // TODO: add a check to avoid creating multiple sessions for a user on the same device
     const sessionId = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
 
-    sqlite.run("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)", [sessionId, userId, expiresAt]);
+    sqlite.run("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)", [sessionId, userId, createdAt, expiresAt]);
 
-    return sessionId;
+    return {
+        id: sessionId,
+        user_id: userId,
+        created_at: createdAt,
+        expires_at: expiresAt,
+    };
 };
-
-export interface SessionResponse {
-    id: Session["id"];
-    user_id: Session["user_id"];
-    username: User["username"];
-}
 
 export const getSession = (sessionId: string) => {
     const session = sqlite
         .query(
-            `SELECT s.id, s.user_id, u.username
-            FROM sessions s
-            JOIN users u ON s.user_id = u.id
-            WHERE s.id = ? AND s.expires_at > CURRENT_TIMESTAMP
+            `SELECT * FROM sessions
+            WHERE id = ? AND expires_at > CURRENT_TIMESTAMP
             `,
         )
-        .get(sessionId) as SessionResponse | undefined;
+        .get(sessionId) as SessionEntity | undefined;
 
     return session;
 };
@@ -164,13 +200,11 @@ export const getSession = (sessionId: string) => {
 export const getAllSessions = () => {
     return sqlite
         .query(
-            `SELECT s.id, s.user_id, u.username
-            FROM sessions s
-            JOIN users u ON s.user_id = u.id
-            WHERE s.expires_at > CURRENT_TIMESTAMP
+            `SELECT * FROM sessions
+            WHERE expires_at > CURRENT_TIMESTAMP
             `,
         )
-        .all() as SessionResponse[];
+        .all() as SessionEntity[];
 };
 // #endregion
 
@@ -195,7 +229,7 @@ BEGIN
 END;
 `);
 
-interface UserWithPasswordHash {
+interface UserEntityWithPasswordHash {
     id: string;
     username: string;
     password_hash: string;
@@ -203,7 +237,7 @@ interface UserWithPasswordHash {
     last_seen_at: string;
 }
 
-export type User = Omit<UserWithPasswordHash, "password_hash">;
+export type UserEntity = Omit<UserEntityWithPasswordHash, "password_hash">;
 
 export type DefaultUsername = "Andrey" | "Sasha";
 
@@ -221,15 +255,15 @@ const createUser = async (username: DefaultUsername, plainPassword: string) => {
 };
 
 export const getUserById = (userId: string) => {
-    return sqlite.query("SELECT * FROM users WHERE id = ?").get(userId) as UserWithPasswordHash | undefined;
+    return sqlite.query("SELECT * FROM users WHERE id = ?").get(userId) as UserEntityWithPasswordHash | undefined;
 };
 
 export const getUserByName = (username: string) => {
-    return sqlite.query("SELECT * FROM users WHERE username = ?").get(username) as UserWithPasswordHash | undefined;
+    return sqlite.query("SELECT * FROM users WHERE username = ?").get(username) as UserEntityWithPasswordHash | undefined;
 };
 
 export const getAllUsers = () => {
-    return sqlite.query("SELECT id, username FROM users ORDER BY username ASC").all() as User[];
+    return sqlite.query("SELECT id, username, updated_at, last_seen_at FROM users ORDER BY username ASC").all() as UserEntity[];
 };
 
 // #endregion
@@ -256,14 +290,14 @@ BEGIN
 END;
 `);
 
-export interface ChatMessage {
+export interface ChatMessageEntity {
     id: string;
     user_id: string;
     content: string;
     created_at: string;
 }
 
-export const createChatMessage = (chatMessageId: string, userId: string, content: string, createdAt: string): ChatMessage => {
+export const createChatMessage = (chatMessageId: string, userId: string, content: string, createdAt: string): ChatMessageEntity => {
     sqlite.run("INSERT INTO chat_messages (id, user_id, content, created_at) VALUES (?, ?, ?, ?)", [
         chatMessageId,
         userId,
@@ -286,7 +320,7 @@ export const getAllChatMessages = () => {
             FROM chat_messages
             ORDER BY datetime(created_at) ASC`,
         )
-        .all() as ChatMessage[];
+        .all() as ChatMessageEntity[];
 };
 
 // #endregion

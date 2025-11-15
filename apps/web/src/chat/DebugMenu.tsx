@@ -1,7 +1,7 @@
 import { useEffect, useRef, type MouseEventHandler } from "react";
 
 import { api } from "../api";
-import { ws } from "../sync/websocket";
+import { wsHandler } from "../sync/websocket";
 import { Button } from "../ui/Button";
 
 const LOCAL_STORAGE_KEY = "debugDialogPosition";
@@ -106,8 +106,8 @@ export const DebugMenu = ({ onLogout }: { onLogout: () => void }) => {
                 </button>
             </div>
             <div className="flex gap-2">
-                <Button onClick={() => ws.connect()}>Connect</Button>
-                <Button onClick={() => ws.disconnect()}>Disconnect</Button>
+                <Button onClick={() => wsHandler.connect()}>Connect</Button>
+                <Button onClick={() => wsHandler.disconnect()}>Disconnect</Button>
                 <Button
                     onClick={async () => {
                         await api.logout.post();

@@ -11,7 +11,7 @@ export const ChatMessageInput = () => {
                     const value = e.currentTarget.value.trim();
 
                     if (value) {
-                        await chatStore.sendMessage({ content: value });
+                        await chatStore.sendChatMessage(value);
                         (e.target as HTMLInputElement).value = "";
                     }
                 }
